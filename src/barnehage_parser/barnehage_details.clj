@@ -1,22 +1,63 @@
 (ns barnehage-parser.barnehage-details
   (:require [net.cgrand.enlive-html :as html]))
 
+(def sorted-keys [:name
+                  :address
+                  :url
+                  :ages
+                  :total_price
+                  :food_price
+                  :food_description
+                  :barnets_utvikling
+                  :barnets_trivsel
+                  :total_tilfredshet
+                  :area_per_kid
+                  :kids_count
+                  :ute__og_innemiljo
+                  :informasjon
+                  :svarprosent
+                  :kids_per_employee
+                  :pct_employees_with_degree
+                  :vacation_weeks
+                  :opening_hours])
+
+(defn- get-vacation-weeks
+  [content]
+  (if-let [vacation-text (->> (html/select content [:div.io-tile-common.io-tile-vacations :p])
+                              (map html/text)
+                              first)]
+    (re-find (re-matcher #"uke [\d\d[, | og ]]*" vacation-text))))
+
+(defn- get-opening-hours
+  [content]
+  (if-let [schedule-text (->> (html/select content [:div.opening-hour-element-body :ul :li])
+                              (map html/text)
+                              first)]
+
+    (re-find (re-matcher #"0.*" schedule-text))))
+
 (defn- get-key-info
   [content]
-  (let [all-key-info (->> (html/select content [:div.io-tile-common.io-tile-preschool.io-tile-preschool-information
+  (let [key-info-str (->> (html/select content [:div.io-tile-common.io-tile-preschool.io-tile-preschool-information
                                                 :div.io-tile-content
                                                 :ul :li])
-                          (map html/text))
-        selected-key-info (mapv
-                            (vec all-key-info)
-                            [0 5 6 7 8 9])
-        keys [:barnehage_type :ages :kids_count :area_per_kid :kids_per_employee :pct_employees_with_degree]
-        keys-and-vals (zipmap keys selected-key-info)
-        clean-kids-count (update keys-and-vals :kids_count #(clojure.string/replace % #"Antall barn: " ""))
-        clean-area-kids (update clean-kids-count :area_per_kid #(re-find (re-matcher #"\d,\d+" %)))
-        clean-kids-employee (update clean-area-kids :kids_per_employee #(re-find (re-matcher #"\d,\d+" %)))
-        clean-pct-employees (update clean-kids-employee :pct_employees_with_degree #(re-find (re-matcher #"\d\d,\d+" %)))]
-    clean-pct-employees))
+                          (map html/text)
+                          (clojure.string/join "\n"))
+        kids-count (-> (re-find (re-matcher #"Antall barn: ([\d|,]*)" key-info-str))
+                       second)
+        area-per-kid (-> (re-find (re-matcher #"Inneareal: ([\d|,]*)" key-info-str))
+                         second)
+        kids-per-employee (-> (re-find (re-matcher #"Antall barn per ansatt: ([\d|,]*)" key-info-str))
+                              second)
+        pct-employees-degreed (-> (re-find (re-matcher #"barnehagelærerutdanning: ([\d|,]*)" key-info-str))
+                                  second)
+        ages (-> (re-find (re-matcher #"\n(.*år.*)" key-info-str))
+                 second)]
+    {:ages ages
+     :kids_count kids-count
+     :area_per_kid area-per-kid
+     :kids_per_employee kids-per-employee
+     :pct_employees_with_degree pct-employees-degreed}))
 
 (defn- get-address
   [content]
@@ -26,77 +67,51 @@
 
 (defn- get-food-description
   [content]
-  (-> (html/select content [:div.io-tile-preschool-prices])
+  (-> (html/select content [:div.io-tile-common.io-tile-preschool.io-tile-preschool-prices :span])
       first
-      :content
-      last
-      :content
-      first))
+      html/text))
 
 (defn- get-food-price
   [content]
-  (-> (html/select content [:div.io-tile-preschool-prices])
-      first
-      :content
-      (nth 2)
-      :content
+  (-> (html/select
+        content
+        [:div.io-tile-common.io-tile-preschool.io-tile-preschool-prices :strong])
       second
-      :content
-      first))
+      html/text))
 
 (defn- get-total-price
   [content]
-  (->> (html/select content [:div.io-tile-preschool-prices])
-       first
-       :content
-       second
-       :content
-       second
-       :content
-       first))
+  (-> (html/select
+        content
+        [:div.io-tile-common.io-tile-preschool.io-tile-preschool-prices :strong])
+      first
+      html/text))
 
 (defn- get-ratings-from-table
   [content]
-  (let [keys (->> (html/select content [:table])
-                  first
-                  :content
-                  (last)
-                  :content
+  (let [keys (->> (html/select content [:div.io-tile-common.io-tile-survey :div :table :tbody :tr :th])
                   (map #(-> %
-                            :content
-                            first
-                            :content
-                            first
+                            html/text
                             (clojure.string/replace #" " "_")
                             (clojure.string/replace #"-" "_")
                             (clojure.string/replace #"ø" "o")
                             (clojure.string/lower-case)
                             keyword)))
-        values (->> (html/select content [:table])
-                    first
-                    :content
-                    (last)
-                    :content
-                    (map #(-> % :content))
-                    (map #(-> % second :content first)))]
+        values (->> (html/select content [:div.io-tile-common.io-tile-survey :div :table :tbody :tr :td])
+                    (map html/text))]
     (zipmap keys values)))
 
 (defn get-details
   [url]
-  (let
-    [content (html/html-resource (java.net.URL. url))
-     keys-and-values (get-ratings-from-table content)
-     total-price (get-total-price content)
-     food-price (get-food-price content)
-     food-description (get-food-description content)
-     address (get-address content)
-     name (-> (html/select content [:h1.title]) first :content first)
-     key-info-map (get-key-info content)]
-    (-> keys-and-values
-        (assoc :total_price total-price
-               :food_price food-price
-               :food_description food-description
-               :name name
+  (let [_ (println (str "url: " url))
+        content (html/html-resource (java.net.URL. url))]
+    (-> (get-ratings-from-table content)
+        (merge (get-key-info content))
+        (assoc :total_price (get-total-price content)
+               :food_price (get-food-price content)
+               :food_description (get-food-description content)
+               :name (-> (html/select content [:h1.title]) first :content first)
                :url url
-               :address address)
-        (merge key-info-map))))
+               :address (get-address content)
+               :opening_hours (get-opening-hours content)
+               :vacation_weeks (get-vacation-weeks content)))))

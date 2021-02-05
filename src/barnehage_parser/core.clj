@@ -1,9 +1,21 @@
 (ns barnehage-parser.core
   (:gen-class)
-  (:require [barnehage-parser.barnehage-details :as details]))
+  (:require [barnehage-parser.barnehage-details :as details]
+            [clojure.data.csv :as csv]
+            [clojure.java.io :as io]))
+
+(defn write-csv [path row-data]
+  (let [columns  details/sorted-keys
+        headers (map name columns)
+        rows (mapv #(mapv % columns) row-data)]
+    (with-open [file (io/writer path)]
+      (csv/write-csv file (cons headers rows)))))
 
 (defn -main
   [& args]
   (let
-    [url "https://www.oslo.kommune.no/barnehage/finn-barnehage-i-oslo/hamna-barnehage/"]
-    (details/get-details url)))
+    [all-urls (->> (clojure.string/split
+                     (slurp "resources/barnehage.list") #"\n")
+                   (into []))
+     result (map details/get-details all-urls)]
+    (write-csv "/tmp/results.csv" result)))
