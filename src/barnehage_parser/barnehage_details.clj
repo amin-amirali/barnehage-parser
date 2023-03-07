@@ -115,7 +115,7 @@
 
 (defn get-details
   [url]
-  (let [_ (println (str "url: " url))
+  (let [_ (println (str "processing url: " url))
         content (html/html-resource (java.net.URL. url))]
     (-> (get-ratings-from-table content)
         (merge (get-key-info content))
