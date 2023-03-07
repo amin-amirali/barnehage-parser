@@ -1,6 +1,7 @@
 (ns barnehage-parser.core
   (:gen-class)
-  (:require [barnehage-parser.barnehage-details :as details]
+  (:require [barnehage-parser.barnehage-list :as barnehage-list]
+            [barnehage-parser.barnehage-details :as details]
             [clojure.data.csv :as csv]
             [clojure.java.io :as io]))
 
@@ -14,8 +15,6 @@
 (defn -main
   [& args]
   (let
-    [all-urls (->> (clojure.string/split
-                     (slurp "resources/barnehage.list") #"\n")
-                   (into []))
+    [all-urls (barnehage-list/get-barnehage-url-list)
      result (map details/get-details all-urls)]
     (write-csv "/tmp/results.csv" result)))

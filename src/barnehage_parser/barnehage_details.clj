@@ -30,7 +30,7 @@
 
 (defn- get-opening-hours
   [content]
-  (if-let [schedule-text (->> (html/select content [:div.opening-hour-element-body :ul :li])
+  (if-let [schedule-text (->> (html/select content [:div.io-openinghours__content :ul :li])
                               (map html/text)
                               first)]
 
@@ -38,9 +38,7 @@
 
 (defn- get-key-info
   [content]
-  (let [key-info-str (->> (html/select content [:div.io-tile-common.io-tile-preschool.io-tile-preschool-information
-                                                :div.io-tile-content
-                                                :ul :li])
+  (let [key-info-str (->> (html/select content [:div.io-tile-preschool-information :ul :li])
                           (map html/text)
                           (clojure.string/join "\n"))
         kids-count (-> (re-find (re-matcher #"Antall barn: ([\d|,]*)" key-info-str))
@@ -61,13 +59,19 @@
 
 (defn- get-address
   [content]
-  (->> (html/select content [:div.contact-info :p :span])
-       (map html/text)
-       (clojure.string/join " ")))
+  (let [address (->> (html/select content [:div.osg-contactbox__content :div.osg-contactbox__value])
+                     (map html/text)
+                     last
+                     (clojure.string/trim)
+                     )
+        parsed-address (re-find (re-matcher #"(.*)\n(.*)" address))]
+    (str (clojure.string/trim (nth parsed-address 1))
+         " "
+         (clojure.string/trim (nth parsed-address 2)))))
 
 (defn- get-food-description
   [content]
-  (-> (html/select content [:div.io-tile-common.io-tile-preschool.io-tile-preschool-prices :span])
+  (-> (html/select content [:div.io-tile-preschool-prices :span])
       first
       html/text))
 
@@ -75,7 +79,7 @@
   [content]
   (-> (html/select
         content
-        [:div.io-tile-common.io-tile-preschool.io-tile-preschool-prices :strong])
+        [:div.io-tile-preschool-prices :strong])
       second
       html/text))
 
@@ -83,23 +87,31 @@
   [content]
   (-> (html/select
         content
-        [:div.io-tile-common.io-tile-preschool.io-tile-preschool-prices :strong])
+        [:div.io-tile-preschool-prices :p :strong])
       first
       html/text))
 
 (defn- get-ratings-from-table
   [content]
-  (let [keys (->> (html/select content [:div.io-tile-common.io-tile-survey :div :table :tbody :tr :th])
+  (let [keys (->> (html/select content [:div.io-tile-survey :div :table :tbody :tr :th])
                   (map #(-> %
                             html/text
                             (clojure.string/replace #" " "_")
                             (clojure.string/replace #"-" "_")
+                            (clojure.string/replace #"__" "_")
                             (clojure.string/replace #"ø" "o")
                             (clojure.string/lower-case)
                             keyword)))
-        values (->> (html/select content [:div.io-tile-common.io-tile-survey :div :table :tbody :tr :td])
-                    (map html/text))]
-    (zipmap keys values)))
+        values (->> (html/select content [:div.io-tile-survey :div :table :tbody :tr :td])
+                    (map html/text))
+        values-filtered (map #(nth values %) (filter even? (range (count values))))]
+    (zipmap keys values-filtered)))
+
+(defn- get-name
+  [content]
+  (->> (html/select content [:h1.io-text-preset-1])
+       first
+       html/text))
 
 (defn get-details
   [url]
@@ -110,8 +122,7 @@
         (assoc :total_price (get-total-price content)
                :food_price (get-food-price content)
                :food_description (get-food-description content)
-               :name (-> (html/select content [:h1.title]) first :content first)
+               :name (get-name content)
                :url url
                :address (get-address content)
-               :opening_hours (get-opening-hours content)
-               :vacation_weeks (get-vacation-weeks content)))))
+               :opening_hours (get-opening-hours content)))))
