@@ -97,8 +97,8 @@
   (let [keys (->> (html/select content [:div.io-tile-survey :div :table :tbody :tr :th])
                   (map #(-> %
                             html/text
-                            (clojure.string/replace #" " "_")
-                            (clojure.string/replace #"-" "_")
+                            (clojure.string/replace #" " "")
+                            (clojure.string/replace #"-" "")
                             (clojure.string/replace #"__" "_")
                             (clojure.string/replace #"ø" "o")
                             (clojure.string/lower-case)
