@@ -73,7 +73,8 @@
   [content]
   (-> (html/select content [:div.io-tile-preschool-prices :span])
       first
-      html/text))
+      html/text
+      (clojure.string/replace "," " ")))
 
 (defn- get-food-price
   [content]
@@ -109,9 +110,10 @@
 
 (defn- get-name
   [content]
-  (->> (html/select content [:h1.io-text-preset-1])
+  (-> (html/select content [:h1.io-text-preset-1])
        first
-       html/text))
+       html/text
+       (clojure.string/replace "," "")))
 
 (defn get-details
   [url]
