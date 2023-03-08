@@ -34,7 +34,7 @@
                               (map html/text)
                               first)]
 
-    (re-find (re-matcher #"0.*" schedule-text))))
+    (re-find (re-matcher #"[0|1].*" schedule-text))))
 
 (defn- get-key-info
   [content]
@@ -86,11 +86,16 @@
 
 (defn- get-total-price
   [content]
-  (-> (html/select
-        content
-        [:div.io-tile-preschool-prices :p :strong])
-      first
-      html/text))
+  (let [total-price (-> (html/select content [:div.io-tile-preschool-prices :p :strong])
+                        first
+                        html/text)]
+    (if (and (empty? total-price)
+             (= (-> (html/select content [:div.io-tile-preschool-prices :p])
+                    first
+                    html/text)
+                "Tilbudet er gratis."))
+      "0, -"
+      total-price)))
 
 (defn- get-ratings-from-table
   [content]
@@ -111,9 +116,9 @@
 (defn- get-name
   [content]
   (-> (html/select content [:h1.io-text-preset-1])
-       first
-       html/text
-       (clojure.string/replace "," "")))
+      first
+      html/text
+      (clojure.string/replace "," "")))
 
 (defn get-details
   [url]
